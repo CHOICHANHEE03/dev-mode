@@ -7,18 +7,12 @@ if [ "$#" -lt 1 ]; then
  exit 1
 fi
 
-## 체인코드 빌드
-echo "체인코드 빌드"
-cd ./chaincode/${1}/go/
-go mod init
-go build
-
 ## 체인코드 패키지화 (package)
 echo "체인코드 패키지화"
 cd /opt/gopath/src/github.com/hyperledger/fabric/peer
 peer lifecycle chaincode package $1.tar.gz \
- --path ./chaincode/${1}/go/ \
- --lang golang \
+ --path ./chaincode/${1}/javascript/ \
+ --lang node \
  --label ${1}_1
 
 ## Org1 체인코드 설치 (install)
@@ -41,7 +35,6 @@ peer lifecycle chaincode approveformyorg \
  --version 1 \
  --package-id $PACKAGE_ID \
  --sequence 1 NA NA NA
-
 ## 체인코드 Commit
 echo "체인코드 커밋"
 peer lifecycle chaincode commit \
