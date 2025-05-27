@@ -1,42 +1,105 @@
 const express = require('express');
+const cors = require('cors');
+//const crypto = require('crypto');
+const app = express();
 const path = require('path');
 const sdk = require('./sdk');
-const cors = require('cors');
-const app = express();
+
+const PORT = 8001;
+const HOST = '0.0.0.0';
+
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cors({ origin: '*' })); // 모든 오리진 허용 (프로덕션에서는 제한 권장)
 
-// 상태 변경 트랜잭션 처리
-app.post('/invoke', async (req, res) => {
-    const { function: fcn, args } = req.body;
-    if (!fcn || !args || !Array.isArray(args)) {
-        return res.status(400).json({ error: '함수 이름과 인자가 필요합니다.' });
+// 뒷자리 해시 함수
+// function hashRRNSuffix(rrnSuffix) {
+//     return crypto.createHash('sha256').update(rrnSuffix).digest('hex');
+// }
+
+// Initialize the voting system
+app.get('/init', function (req, res) {
+    let args = [];
+    sdk.send(false, 'initializeVotingSystem', args, res); // Init대신 initializeVotingSystem으로 변경
+});
+
+// Register a candidate
+app.get('/registerCandidate', function (req, res) {
+    let candidateId = req.query.candidateId;
+    let name = req.query.name;
+    let partyName = req.query.partyName;
+    let args = [candidateId, partyName, name];
+    sdk.send(false, 'registerCandidate', args, res);
+});
+
+// Register a voter and hash resident
+app.get('/registerVoter', function (req, res) {
+    let name = req.query.name;
+    let rrnSuffix = req.query.rrnSuffix;
+
+    if (!name || !rrnSuffix) {
+        return res.status(400).json({ error: 'name과 rrnSuffix는 필수입니다.' });
+    }
+    
+    //const hashedRrn = hashRRNSuffix(rrnSuffix);
+    const args = [name, rrnSuffix];
+    sdk.send(false, 'registerVoter', args, res);
+});
+
+// Cast a vote and hash resident
+app.get('/vote', function (req, res) {
+    const voterName = req.query.voterName;
+    const rrnSuffix = req.query.rrnSuffix;
+    const candidateName = req.query.candidateName;
+
+    if (!voterName || !rrnSuffix || !candidateName) {
+        return res.status(400).json({ error: 'voterName, rrnSuffix, candidateName는 필수입니다.' });
     }
 
-    console.log(`invoke 호출: ${fcn} with args: ${args}`);
-    await sdk.send(false, fcn, args, res); // 콜백 대신 res 전달
+    //const hashedRrn = hashRRNSuffix(rrnSuffix);
+    const args = [voterName, rrnSuffix, candidateName];
+    sdk.send(false, 'vote', args, res);
 });
 
-// 조회 트랜잭션 처리
-app.post('/query', async (req, res) => {
-    const { function: fcn, args } = req.body;
-    if (!fcn || !args || !Array.isArray(args)) {
-        return res.status(400).json({ error: '함수 이름과 인자가 필요합니다.' });
+// End the voting process
+app.get('/endVoting', function (req, res) {
+    let args = [];
+    sdk.send(false, 'endVoting', args, res);
+});
+
+// Get voting results
+app.get('/getVotingResults', function (req, res) {
+    let args = [];
+    sdk.send(true, 'getVotingResults', args, res);
+});
+
+// Get voter information
+app.get('/getVoterInfo', function (req, res) {
+    const voterName = req.query.voterName;
+    const rrnSuffix = req.query.rrnSuffix;
+    
+    if (!voterName || !rrnSuffix) {
+        return res.status(400).json({ error: 'voterName과 rrnSuffix는 필수입니다.' });
     }
 
-    console.log(`query 호출: ${fcn} with args: ${args}`);
-    await sdk.send(true, fcn, args, res); // 콜백 대신 res 전달
+    //const hashedRrn = hashRRNSuffix(rrnSuffix);
+    const args = [voterName, rrnSuffix];
+    sdk.send(true, 'getVoterInfo', args, res);
 });
 
-// 정적 파일 제공 (index.html)
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// Get candidate information
+app.get('/getCandidateInfo', function (req, res) {
+    let candidateId = req.query.candidateId;
+    let args = [candidateId];
+    sdk.send(true, 'getCandidateInfo', args, res);
 });
 
-// 서버 시작
-const PORT = 3000;
-const HOST = '0.0.0.0';
-app.listen(PORT, HOST, () => {
-    console.log(`서버가 http://${HOST}:${PORT}에서 실행 중입니다.`);
+// Get all candidates
+app.get('/getAllCandidates', function (req, res) {
+    let args = [];
+    sdk.send(true, 'getAllCandidates', args, res);
 });
+
+app.use(express.static(path.join(__dirname, '../client')));
+app.listen(PORT, HOST);
+console.log(`Running on http://${HOST}:${PORT}`);
