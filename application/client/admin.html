@@ -313,8 +313,35 @@
         </div>
     </div>
 
-    <script>
+<script>
         let adminKey = '';
+
+        // 안전한 JSON 파싱 함수
+        function safeParseResponse(data) {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            // 응답 데이터가 문자열인 경우
+            if (typeof data === 'string') {
+                return JSON.parse(data);
+            }
+            // data.result가 문자열인 경우
+            else if (data.result && typeof data.result === 'string') {
+                return JSON.parse(data.result);
+            }
+            // data.result가 객체인 경우
+            else if (data.result && typeof data.result === 'object') {
+                return data.result;
+            }
+            // 직접 데이터가 온 경우
+            else if (typeof data === 'object') {
+                return data;
+            }
+            else {
+                throw new Error('응답 데이터를 파싱할 수 없습니다.');
+            }
+        }
 
         function login() {
             const password = document.getElementById('adminPassword').value;
@@ -356,10 +383,11 @@
             })
             .then(response => response.json())
             .then(data => {
-                if (data.error) {
-                    showResult('initResult', data.error, 'error');
-                } else {
-                    showResult('initResult', data.result ? JSON.parse(data.result).message : '시스템이 초기화되었습니다.', 'success');
+                try {
+                    const result = safeParseResponse(data);
+                    showResult('initResult', result.message || '시스템이 초기화되었습니다.', 'success');
+                } catch (error) {
+                    showResult('initResult', error.message, 'error');
                 }
             })
             .catch(error => {
@@ -384,14 +412,15 @@
             })
             .then(response => response.json())
             .then(data => {
-                if (data.error) {
-                    showResult('candidateResult', data.error, 'error');
-                } else {
-                    showResult('candidateResult', data.result ? JSON.parse(data.result).message : '후보자가 등록되었습니다.', 'success');
+                try {
+                    const result = safeParseResponse(data);
+                    showResult('candidateResult', result.message || '후보자가 등록되었습니다.', 'success');
                     // 폼 초기화
                     document.getElementById('candidateId').value = '';
                     document.getElementById('candidateName').value = '';
                     document.getElementById('partyName').value = '';
+                } catch (error) {
+                    showResult('candidateResult', error.message, 'error');
                 }
             })
             .catch(error => {
@@ -407,10 +436,8 @@
             })
             .then(response => response.json())
             .then(data => {
-                if (data.error) {
-                    showResult('votingResult', data.error, 'error');
-                } else {
-                    const result = JSON.parse(data.result);
+                try {
+                    const result = safeParseResponse(data);
                     const statusHtml = `
                         <div class="stats-grid">
                             <div class="stat-card">
@@ -432,6 +459,8 @@
                         </div>
                     `;
                     showResult('votingResult', statusHtml, 'success', true);
+                } catch (error) {
+                    showResult('votingResult', error.message, 'error');
                 }
             })
             .catch(error => {
@@ -451,11 +480,11 @@
             })
             .then(response => response.json())
             .then(data => {
-                if (data.error) {
-                    showResult('votingResult', data.error, 'error');
-                } else {
-                    const result = JSON.parse(data.result);
+                try {
+                    const result = safeParseResponse(data);
                     showResult('votingResult', `${result.message}\n총 유권자: ${result.totalVoters}명, 총 투표수: ${result.totalVotes}명, 투표율: ${result.participationRate}`, 'success');
+                } catch (error) {
+                    showResult('votingResult', error.message, 'error');
                 }
             })
             .catch(error => {
@@ -471,10 +500,8 @@
             })
             .then(response => response.json())
             .then(data => {
-                if (data.error) {
-                    showResult('resultsDisplay', data.error, 'error');
-                } else {
-                    const result = JSON.parse(data.result);
+                try {
+                    const result = safeParseResponse(data);
                     let resultsHtml = `
                         <div class="stats-grid">
                             <div class="stat-card">
@@ -505,6 +532,8 @@
                     
                     resultsHtml += '</div>';
                     showResult('resultsDisplay', resultsHtml, 'success', true);
+                } catch (error) {
+                    showResult('resultsDisplay', error.message, 'error');
                 }
             })
             .catch(error => {
@@ -520,10 +549,8 @@
             })
             .then(response => response.json())
             .then(data => {
-                if (data.error) {
-                    showResult('candidatesDisplay', data.error, 'error');
-                } else {
-                    const candidates = JSON.parse(data.result);
+                try {
+                    const candidates = safeParseResponse(data);
                     if (candidates.length === 0) {
                         showResult('candidatesDisplay', '등록된 후보자가 없습니다.', 'error');
                         return;
@@ -543,6 +570,8 @@
                     });
                     candidatesHtml += '</div>';
                     showResult('candidatesDisplay', candidatesHtml, 'success', true);
+                } catch (error) {
+                    showResult('candidatesDisplay', error.message, 'error');
                 }
             })
             .catch(error => {
@@ -564,10 +593,8 @@
             })
             .then(response => response.json())
             .then(data => {
-                if (data.error) {
-                    showResult('candidatesDisplay', data.error, 'error');
-                } else {
-                    const candidate = JSON.parse(data.result);
+                try {
+                    const candidate = safeParseResponse(data);
                     const candidateHtml = `
                         <div class="candidate-item">
                             <strong>ID:</strong> ${candidate.id}<br>
@@ -578,6 +605,8 @@
                         </div>
                     `;
                     showResult('candidatesDisplay', candidateHtml, 'success', true);
+                } catch (error) {
+                    showResult('candidatesDisplay', error.message, 'error');
                 }
             })
             .catch(error => {
@@ -606,9 +635,14 @@
         }
 
         // Enter 키로 로그인
-        document.getElementById('adminPassword').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                login();
+        document.addEventListener('DOMContentLoaded', function() {
+            const passwordInput = document.getElementById('adminPassword');
+            if (passwordInput) {
+                passwordInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        login();
+                    }
+                });
             }
         });
     </script>

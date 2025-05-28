@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -118,7 +119,8 @@
             color: #555;
         }
 
-        .form-group input, .form-group select {
+        .form-group input,
+        .form-group select {
             width: 100%;
             padding: 0.75rem;
             border: 2px solid #e1e5e9;
@@ -127,7 +129,8 @@
             transition: border-color 0.3s ease;
         }
 
-        .form-group input:focus, .form-group select:focus {
+        .form-group input:focus,
+        .form-group select:focus {
             outline: none;
             border-color: #4ecdc4;
         }
@@ -279,20 +282,20 @@
             .container {
                 padding: 1rem;
             }
-            
+
             .header-content {
                 padding: 0 1rem;
             }
-            
+
             .status-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
-            
+
             .candidate-item {
                 flex-direction: column;
                 align-items: flex-start;
             }
-            
+
             .vote-button {
                 margin-top: 0.5rem;
                 align-self: stretch;
@@ -300,6 +303,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="header">
         <div class="header-content">
@@ -342,7 +346,7 @@
                     투표에 참여하려면 먼저 유권자 등록을 해야 합니다.<br>
                     이름과 주민등록번호 뒷 7자리를 입력해주세요.
                 </div>
-                
+
                 <div class="form-group">
                     <label for="voterName">이름:</label>
                     <input type="text" id="voterName" placeholder="실명을 입력하세요">
@@ -369,7 +373,7 @@
                 </div>
 
                 <button class="btn btn-secondary" onclick="loadCandidates()">후보자 목록 불러오기</button>
-                
+
                 <div id="candidatesList" class="candidate-list" style="display: none;">
                     <!-- 후보자 목록이 여기에 동적으로 추가됩니다 -->
                 </div>
@@ -400,35 +404,104 @@
         let currentVotingStatus = null;
         let candidates = [];
 
+        // 안전한 JSON 파싱 함수
+        function safeParseResponse(data) {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            // 응답 데이터가 문자열인 경우
+            if (typeof data === 'string') {
+                return JSON.parse(data);
+            }
+            // data.result가 문자열인 경우
+            else if (data.result && typeof data.result === 'string') {
+                return JSON.parse(data.result);
+            }
+            // data.result가 객체인 경우
+            else if (data.result && typeof data.result === 'object') {
+                return data.result;
+            }
+            // data.payload가 있는 경우
+            else if (data.payload) {
+                if (typeof data.payload === 'string') {
+                    return JSON.parse(data.payload);
+                } else {
+                    return data.payload;
+                }
+            }
+            // 직접 데이터가 온 경우
+            else if (typeof data === 'object' && data.isActive !== undefined) {
+                return data;
+            }
+            else {
+                throw new Error('응답 데이터를 파싱할 수 없습니다.');
+            }
+        }
+
         // 페이지 로드 시 투표 현황 업데이트
-        window.onload = function() {
+        window.onload = function () {
             updateVotingStatus();
         };
 
         function updateVotingStatus() {
             fetch('/public/votingStatus')
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    console.error('Status update failed:', data.error);
-                    return;
-                }
-                
-                const status = JSON.parse(data.result);
-                currentVotingStatus = status;
-                
-                document.getElementById('totalVoters').textContent = status.totalVoters;
-                document.getElementById('totalVotes').textContent = status.totalVotes;
-                document.getElementById('participationRate').textContent = status.participationRate;
-                document.getElementById('votingStatusText').textContent = status.isActive ? '진행중' : '종료';
-                
-                // 투표 상태에 따라 색상 변경
-                const statusElement = document.getElementById('votingStatusText');
-                statusElement.style.color = status.isActive ? '#4caf50' : '#f44336';
-            })
-            .catch(error => {
-                console.error('Status update error:', error);
-            });
+                .then(response => response.json())
+                .then(data => {
+                    console.log('받은 데이터:', data); // 디버깅용
+                    console.log('데이터 타입:', typeof data); // 디버깅용
+
+                    try {
+                        const status = safeParseResponse(data);
+                        console.log('파싱된 상태:', status); // 디버깅용
+                        currentVotingStatus = status;
+
+                        // 안전한 데이터 접근 (기본값 제공)
+                        document.getElementById('totalVoters').textContent = status.totalVoters || 0;
+                        document.getElementById('totalVotes').textContent = status.totalVotes || 0;
+
+                        // participationRate 처리 (이미 %가 포함되어 있는지 확인)
+                        let participationText = '0%';
+                        if (status.participationRate !== undefined && status.participationRate !== null) {
+                            participationText = status.participationRate.toString();
+                            // 이미 %가 포함되어 있지 않으면 추가
+                            if (!participationText.includes('%')) {
+                                participationText += '%';
+                            }
+                        }
+                        document.getElementById('participationRate').textContent = participationText;
+
+                        document.getElementById('votingStatusText').textContent =
+                            status.isActive ? '진행중' : '종료';
+
+                        // 투표 상태에 따라 색상 변경
+                        const statusElement = document.getElementById('votingStatusText');
+                        statusElement.style.color = status.isActive ? '#4caf50' : '#f44336';
+
+                        console.log('투표 상태 업데이트 완료:', status);
+
+                    } catch (parseError) {
+                        console.error('JSON 파싱 오류:', parseError);
+                        console.error('원본 데이터:', data);
+                        console.error('데이터 타입:', typeof data);
+
+                        // 파싱 에러 시 기본값 표시
+                        document.getElementById('totalVoters').textContent = 'Error';
+                        document.getElementById('totalVotes').textContent = 'Error';
+                        document.getElementById('participationRate').textContent = 'Error';
+                        document.getElementById('votingStatusText').textContent = 'Error';
+                        document.getElementById('votingStatusText').style.color = '#f44336';
+                    }
+                })
+                .catch(error => {
+                    console.error('Status update error:', error);
+                    // 네트워크 에러 시 기본값 표시
+                    document.getElementById('totalVoters').textContent = 'N/A';
+                    document.getElementById('totalVotes').textContent = 'N/A';
+                    document.getElementById('participationRate').textContent = 'N/A';
+                    document.getElementById('votingStatusText').textContent = '연결 오류';
+                    document.getElementById('votingStatusText').style.color = '#f44336';
+                });
         }
 
         function registerVoter() {
@@ -446,19 +519,20 @@
             }
 
             fetch(`/voter/registerVoter?name=${encodeURIComponent(name)}&rrnSuffix=${encodeURIComponent(rrn)}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    showResult('voterRegisterResult', data.error, 'error');
-                } else {
-                    showResult('voterRegisterResult', data.result ? JSON.parse(data.result).message : '유권자 등록이 완료되었습니다.', 'success');
-                    // 등록 후 현황 업데이트
-                    setTimeout(updateVotingStatus, 1000);
-                }
-            })
-            .catch(error => {
-                showResult('voterRegisterResult', '등록 실패: ' + error.message, 'error');
-            });
+                .then(response => response.json())
+                .then(data => {
+                    try {
+                        const result = safeParseResponse(data);
+                        showResult('voterRegisterResult', result.message || '유권자 등록이 완료되었습니다.', 'success');
+                        // 등록 후 현황 업데이트
+                        setTimeout(updateVotingStatus, 1000);
+                    } catch (error) {
+                        showResult('voterRegisterResult', error.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    showResult('voterRegisterResult', '등록 실패: ' + error.message, 'error');
+                });
         }
 
         function checkVoterStatus() {
@@ -471,13 +545,11 @@
             }
 
             fetch(`/voter/getVoterInfo?voterName=${encodeURIComponent(name)}&rrnSuffix=${encodeURIComponent(rrn)}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    showResult('voterRegisterResult', data.error, 'error');
-                } else {
-                    const voter = JSON.parse(data.result);
-                    const statusHtml = `
+                .then(response => response.json())
+                .then(data => {
+                    try {
+                        const voter = safeParseResponse(data);
+                        const statusHtml = `
                         <div class="voter-${voter.hasVoted ? 'voted' : 'registered'}">
                             <strong>등록 상태:</strong> ${voter.hasVoted ? '투표 완료' : '등록 완료'}<br>
                             <strong>이름:</strong> ${voter.name}<br>
@@ -485,12 +557,14 @@
                             ${voter.hasVoted ? `<strong>투표일:</strong> ${new Date(voter.votedAt).toLocaleString()}` : ''}
                         </div>
                     `;
-                    showResult('voterRegisterResult', statusHtml, 'success', true);
-                }
-            })
-            .catch(error => {
-                showResult('voterRegisterResult', '조회 실패: ' + error.message, 'error');
-            });
+                        showResult('voterRegisterResult', statusHtml, 'success', true);
+                    } catch (error) {
+                        showResult('voterRegisterResult', error.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    showResult('voterRegisterResult', '조회 실패: ' + error.message, 'error');
+                });
         }
 
         function loadCandidates() {
@@ -500,30 +574,30 @@
             }
 
             fetch('/voter/getCandidates')
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    showResult('voteResult', data.error, 'error');
-                } else {
-                    candidates = JSON.parse(data.result);
-                    if (candidates.length === 0) {
-                        showResult('voteResult', '등록된 후보자가 없습니다.', 'error');
-                        return;
+                .then(response => response.json())
+                .then(data => {
+                    try {
+                        candidates = safeParseResponse(data);
+                        if (candidates.length === 0) {
+                            showResult('voteResult', '등록된 후보자가 없습니다.', 'error');
+                            return;
+                        }
+
+                        displayCandidates();
+                        document.getElementById('candidatesList').style.display = 'block';
+                    } catch (error) {
+                        showResult('voteResult', error.message, 'error');
                     }
-                    
-                    displayCandidates();
-                    document.getElementById('candidatesList').style.display = 'block';
-                }
-            })
-            .catch(error => {
-                showResult('voteResult', '후보자 목록 로드 실패: ' + error.message, 'error');
-            });
+                })
+                .catch(error => {
+                    showResult('voteResult', '후보자 목록 로드 실패: ' + error.message, 'error');
+                });
         }
 
         function displayCandidates() {
             const candidatesList = document.getElementById('candidatesList');
             let candidatesHtml = '<h3>📋 후보자 목록</h3>';
-            
+
             candidates.forEach(candidate => {
                 candidatesHtml += `
                     <div class="candidate-item">
@@ -537,7 +611,7 @@
                     </div>
                 `;
             });
-            
+
             candidatesList.innerHTML = candidatesHtml;
         }
 
@@ -562,22 +636,22 @@
 
         function castVote(voterName, voterRrn, candidateName) {
             fetch(`/voter/vote?voterName=${encodeURIComponent(voterName)}&rrnSuffix=${encodeURIComponent(voterRrn)}&candidateName=${encodeURIComponent(candidateName)}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    showResult('voteResult', data.error, 'error');
-                } else {
-                    const result = JSON.parse(data.result);
-                    showResult('voteResult', `✅ ${result.message}`, 'success');
-                    
-                    // 투표 후 후보자 목록 숨기기 및 현황 업데이트
-                    document.getElementById('candidatesList').style.display = 'none';
-                    setTimeout(updateVotingStatus, 1000);
-                }
-            })
-            .catch(error => {
-                showResult('voteResult', '투표 실패: ' + error.message, 'error');
-            });
+                .then(response => response.json())
+                .then(data => {
+                    try {
+                        const result = safeParseResponse(data);
+                        showResult('voteResult', `✅ ${result.message}`, 'success');
+
+                        // 투표 후 후보자 목록 숨기기 및 현황 업데이트
+                        document.getElementById('candidatesList').style.display = 'none';
+                        setTimeout(updateVotingStatus, 1000);
+                    } catch (error) {
+                        showResult('voteResult', error.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    showResult('voteResult', '투표 실패: ' + error.message, 'error');
+                });
         }
 
         function checkMyVoteInfo() {
@@ -590,13 +664,11 @@
             }
 
             fetch(`/voter/getVoterInfo?voterName=${encodeURIComponent(name)}&rrnSuffix=${encodeURIComponent(rrn)}`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    showResult('myVoteResult', data.error, 'error');
-                } else {
-                    const voter = JSON.parse(data.result);
-                    const infoHtml = `
+                .then(response => response.json())
+                .then(data => {
+                    try {
+                        const voter = safeParseResponse(data);
+                        const infoHtml = `
                         <div class="voter-${voter.hasVoted ? 'voted' : 'registered'}">
                             <strong>이름:</strong> ${voter.name}<br>
                             <strong>등록일:</strong> ${new Date(voter.registeredAt).toLocaleString()}<br>
@@ -605,26 +677,28 @@
                             ${voter.hasVoted ? `<strong>투표한 후보자:</strong> ${voter.votedFor || '정보 없음'}` : ''}
                         </div>
                     `;
-                    showResult('myVoteResult', infoHtml, 'success', true);
-                }
-            })
-            .catch(error => {
-                showResult('myVoteResult', '조회 실패: ' + error.message, 'error');
-            });
+                        showResult('myVoteResult', infoHtml, 'success', true);
+                    } catch (error) {
+                        showResult('myVoteResult', error.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    showResult('myVoteResult', '조회 실패: ' + error.message, 'error');
+                });
         }
 
         function showResult(elementId, message, type, isHtml = false) {
             const element = document.getElementById(elementId);
             element.style.display = 'block';
-            
+
             if (isHtml) {
                 element.innerHTML = message;
             } else {
                 element.textContent = message;
             }
-            
+
             element.className = `result-box ${type}`;
-            
+
             // 성공 메시지는 5초 후 자동으로 숨기기
             if (type === 'success') {
                 setTimeout(() => {
@@ -633,8 +707,9 @@
             }
         }
 
-        // 자동으로 5초마다 투표 현황 업데이트
-        setInterval(updateVotingStatus, 5000);
+        // 자동으로 30초마다 투표 현황 업데이트
+        setInterval(updateVotingStatus, 30000);
     </script>
 </body>
+
 </html>

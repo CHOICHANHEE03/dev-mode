@@ -128,23 +128,8 @@ app.get('/voter/getCandidates', function (req, res) {
 // Check voting status (공개 정보)
 app.get('/public/votingStatus', function (req, res) {
     let args = [];
-    // 투표 상태만 확인 (결과는 제외)
-    sdk.send(true, 'getVotingResults', args, (response) => {
-        if (response && response.result) {
-            const data = JSON.parse(response.result);
-            // 투표자에게는 상세 결과 대신 기본 정보만 제공
-            const publicInfo = {
-                isActive: data.isActive,
-                totalVoters: data.totalVoters,
-                totalVotes: data.totalVotes,
-                participationRate: data.participationRate,
-                candidateCount: data.candidates ? data.candidates.length : 0
-            };
-            res.json({ result: JSON.stringify(publicInfo) });
-        } else {
-            res.json(response);
-        }
-    });
+    // 전체 투표 결과를 가져와서 클라이언트에서 필요한 정보만 사용하도록 함
+    sdk.send(true, 'getVotingResults', args, res);
 });
 
 // ============ 정적 파일 서빙 ============
