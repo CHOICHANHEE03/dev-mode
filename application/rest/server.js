@@ -11,7 +11,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // 간단한 관리자 인증 (실제 환경에서는 더 강력한 인증 시스템 필요)
-const ADMIN_PASSWORD = 'admin123'; // 실제 환경에서는 환경변수나 더 안전한 방식 사용
+const ADMIN_PASSWORD = 'admin123'; // 실제 환경에서는 더 보안적으로 강화된 방법사용
 
 // 관리자 인증 미들웨어
 function authenticateAdmin(req, res, next) {
