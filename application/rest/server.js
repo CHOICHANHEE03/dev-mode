@@ -4,14 +4,15 @@ const app = express();
 const path = require('path');
 const sdk = require('./sdk');
 const PORT = 8001;
-const HOST = 'localhost';
+const HOST = '0.0.0.0';
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+const ADMIN_PASSWORD = 'admin123';
+
 // 간단한 관리자 인증 (실제 환경에서는 더 강력한 인증 시스템 필요)
-const ADMIN_PASSWORD = 'admin123'; // 실제 환경에서는 더 보안적으로 강화된 방법사용
 
 // 관리자 인증 미들웨어
 function authenticateAdmin(req, res, next) {
@@ -32,6 +33,7 @@ app.get('/admin/init', authenticateAdmin, function (req, res) {
     let args = [];
     sdk.send(false, 'initializeVotingSystem', args, res);
 });
+
 
 // Register a candidate (Admin only)
 app.get('/admin/registerCandidate', authenticateAdmin, function (req, res) {
