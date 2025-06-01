@@ -355,6 +355,10 @@
                     <label for="voterRrn">주민등록번호 뒷 7자리:</label>
                     <input type="password" id="voterRrn" placeholder="1234567" maxlength="7">
                 </div>
+                <div class="form-group">
+                    <label for="voterAddr">주소:</label>
+                    <input type="text" id="voterAddr" placeholder="예) 경기도 화성시 능동">
+                </div>
                 <button class="btn" onclick="registerVoter()">유권자 등록</button>
                 <button class="btn btn-secondary" onclick="checkVoterStatus()">등록 상태 확인</button>
                 <div id="voterRegisterResult" class="result-box" style="display: none;"></div>
@@ -507,9 +511,10 @@
         function registerVoter() {
             const name = document.getElementById('voterName').value;
             const rrn = document.getElementById('voterRrn').value;
+            const addr = document.getElementById('voterAddr').value;
 
-            if (!name || !rrn) {
-                showResult('voterRegisterResult', '이름과 주민등록번호 뒷 7자리를 모두 입력해주세요.', 'error');
+            if (!name || !rrn || !addr) {
+                showResult('voterRegisterResult', '이름과 주민등록번호 뒷 7자리 및 주소를 모두 입력해주세요.', 'error');
                 return;
             }
 
@@ -518,7 +523,7 @@
                 return;
             }
 
-            fetch(`/voter/registerVoter?name=${encodeURIComponent(name)}&rrnSuffix=${encodeURIComponent(rrn)}`)
+            fetch(`/voter/registerVoter?name=${encodeURIComponent(name)}&rrnSuffix=${encodeURIComponent(rrn)}&addr=${encodeURIComponent(addr)}`)
                 .then(response => response.json())
                 .then(data => {
                     try {
@@ -553,6 +558,7 @@
                         <div class="voter-${voter.hasVoted ? 'voted' : 'registered'}">
                             <strong>등록 상태:</strong> ${voter.hasVoted ? '투표 완료' : '등록 완료'}<br>
                             <strong>이름:</strong> ${voter.name}<br>
+                            <strong>주소:</strong> ${voter.addr}<br>
                             <strong>등록일:</strong> ${new Date(voter.registeredAt).toLocaleString()}<br>
                             ${voter.hasVoted ? `<strong>투표일:</strong> ${new Date(voter.votedAt).toLocaleString()}` : ''}
                         </div>
@@ -603,7 +609,7 @@
                     <div class="candidate-item">
                         <div class="candidate-info">
                             <div class="candidate-name">${candidate.name}</div>
-                            <div class="candidate-party">${candidate.partyName} (ID: ${candidate.id})</div>
+                            <div class="candidate-party">${candidate.partyName} (기호번호: ${candidate.id})</div>
                         </div>
                         <button class="vote-button" onclick="confirmVote('${candidate.name}')">
                             이 후보자에게 투표
@@ -671,6 +677,8 @@
                         const infoHtml = `
                         <div class="voter-${voter.hasVoted ? 'voted' : 'registered'}">
                             <strong>이름:</strong> ${voter.name}<br>
+                            <strong>주소:</string> ${voter.addr}<br>
+                            <strong>상품 토큰:</strong> ${voter.voterBalance}<br>
                             <strong>등록일:</strong> ${new Date(voter.registeredAt).toLocaleString()}<br>
                             <strong>투표 상태:</strong> ${voter.hasVoted ? '투표 완료' : '투표 대기'}<br>
                             ${voter.hasVoted ? `<strong>투표일:</strong> ${new Date(voter.votedAt).toLocaleString()}<br>` : ''}

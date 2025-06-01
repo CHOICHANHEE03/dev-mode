@@ -33,6 +33,18 @@ app.get('/admin/init', authenticateAdmin, function (req, res) {
     sdk.send(false, 'initializeVotingSystem', args, res);
 });
 
+// Register a product (Admin only)
+app.get('/admin/registerProduct', authenticateAdmin, function (req, res) {
+    let productId = req.query.productId;
+    let productName = req.query.productName;
+
+    if( !productId || !productName) {
+        return res.status(400).json({ error: 'productId와 productName은 필수입니다.' });
+    }
+    let args = [productId, productName];
+    sdk.send(false, 'registerProduct', args, res);
+});
+
 // Register a candidate (Admin only)
 app.get('/admin/registerCandidate', authenticateAdmin, function (req, res) {
     let candidateId = req.query.candidateId;
@@ -81,12 +93,13 @@ app.get('/admin/getCandidateInfo', authenticateAdmin, function (req, res) {
 app.get('/voter/registerVoter', function (req, res) {
     let name = req.query.name;
     let rrnSuffix = req.query.rrnSuffix;
+    let addr =  req.query.addr
     
-    if (!name || !rrnSuffix) {
-        return res.status(400).json({ error: 'name과 rrnSuffix는 필수입니다.' });
+    if (!name || !rrnSuffix || !addr) {
+        return res.status(400).json({ error: '이름과 주민번호, 주소는 필수입니다!' });
     }
     
-    const args = [name, rrnSuffix];
+    const args = [name, rrnSuffix, addr];
     sdk.send(false, 'registerVoter', args, res);
 });
 
@@ -121,6 +134,20 @@ app.get('/voter/getVoterInfo', function (req, res) {
 app.get('/voter/getCandidates', function (req, res) {
     let args = [];
     sdk.send(true, 'getAllCandidates', args, res);
+});
+
+// Purchase a product (투표자가 상품을 구매)
+app.get('/voter/purchaseProduct', function (req, res) {
+    const productName = req.query.productName;
+    const voterName = req.query.voterName;
+    const rrnSuffix = req.query.rrnSuffix;
+
+    if (!productName || !voterName || !rrnSuffix) {
+        return res.status(400).json({ error: '상품명, 투표자이름, 주민번호 뒷자리는 모두 필수입니다.' });
+    }
+
+    const args = [productName, voterName, rrnSuffix];
+    sdk.send(false, 'purchaseProduct', args, res);
 });
 
 // ============ 공통 API ============
