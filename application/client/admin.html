@@ -263,8 +263,8 @@
                 <div class="section-header">👤 후보자 등록</div>
                 <div class="section-content">
                     <div class="form-group">
-                        <label for="candidateId">후보자 ID:</label>
-                        <input type="text" id="candidateId" placeholder="고유한 후보자 ID">
+                        <label for="candidateId">기호 번호:</label>
+                        <input type="text" id="candidateId" placeholder="후보자 기호 번호">
                     </div>
                     <div class="form-group">
                         <label for="candidateName">후보자 이름:</label>
@@ -305,7 +305,7 @@
                     <button class="btn btn-info" onclick="getAllCandidates()">모든 후보자 조회</button>
                     <div class="form-group" style="margin-top: 1rem;">
                         <label for="searchCandidateId">특정 후보자 조회:</label>
-                        <input type="text" id="searchCandidateId" placeholder="후보자 ID 입력">
+                        <input type="text" id="searchCandidateId" placeholder="후보자 기호번호 입력">
                         <button class="btn" onclick="getCandidateInfo()" style="margin-top: 0.5rem;">조회</button>
                     </div>
                     <div id="candidatesDisplay" class="result-box" style="display: none;"></div>
@@ -561,7 +561,7 @@
                     candidates.forEach(candidate => {
                         candidatesHtml += `
                             <div class="candidate-item">
-                                <strong>ID:</strong> ${candidate.id}<br>
+                                <strong>기호번호:</strong> ${candidate.id}<br>
                                 <strong>이름:</strong> ${candidate.name}<br>
                                 <strong>정당:</strong> ${candidate.partyName}<br>
                                 <strong>득표수:</strong> ${candidate.voteCount}표<br>
@@ -583,7 +583,7 @@
         function getCandidateInfo() {
             const candidateId = document.getElementById('searchCandidateId').value;
             if (!candidateId) {
-                showResult('candidatesDisplay', '후보자 ID를 입력해주세요.', 'error');
+                showResult('candidatesDisplay', '후보자 기호번호를 입력해주세요.', 'error');
                 return;
             }
 
@@ -598,7 +598,7 @@
                     const candidate = safeParseResponse(data);
                     const candidateHtml = `
                         <div class="candidate-item">
-                            <strong>ID:</strong> ${candidate.id}<br>
+                            <strong>기호번호:</strong> ${candidate.id}<br>
                             <strong>이름:</strong> ${candidate.name}<br>
                             <strong>정당:</strong> ${candidate.partyName}<br>
                             <strong>득표수:</strong> ${candidate.voteCount}표<br>
