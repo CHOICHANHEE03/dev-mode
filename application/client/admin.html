@@ -151,6 +151,14 @@
             box-shadow: 0 5px 15px rgba(78, 205, 196, 0.3);
         }
 
+        .btn-warning {
+            background: linear-gradient(45deg, #feca57, #ff9ff3);
+        }
+
+        .btn-warning:hover {
+            box-shadow: 0 5px 15px rgba(254, 202, 87, 0.3);
+        }
+
         .result-box {
             background: #f8f9fa;
             border: 1px solid #e9ecef;
@@ -192,11 +200,11 @@
             margin-bottom: 0.5rem;
         }
 
-        .candidate-list {
+        .candidate-list, .product-list {
             margin-top: 1rem;
         }
 
-        .candidate-item {
+        .candidate-item, .product-item {
             background: #f8f9fa;
             padding: 1rem;
             margin-bottom: 0.5rem;
@@ -263,8 +271,8 @@
                 <div class="section-header">👤 후보자 등록</div>
                 <div class="section-content">
                     <div class="form-group">
-                        <label for="candidateId">후보자 ID:</label>
-                        <input type="text" id="candidateId" placeholder="고유한 후보자 ID">
+                        <label for="candidateId">기호 번호:</label>
+                        <input type="text" id="candidateId" placeholder="후보자 기호 번호">
                     </div>
                     <div class="form-group">
                         <label for="candidateName">후보자 이름:</label>
@@ -276,6 +284,25 @@
                     </div>
                     <button class="btn" onclick="registerCandidate()">후보자 등록</button>
                     <div id="candidateResult" class="result-box" style="display: none;"></div>
+                </div>
+            </div>
+
+            <!-- 상품 등록 -->
+            <div class="section">
+                <div class="section-header">🛍️ 상품 등록</div>
+                <div class="section-content">
+                    <p>투표 참여자들이 토큰으로 구매할 수 있는 상품을 등록합니다.</p>
+                    <br>
+                    <div class="form-group">
+                        <label for="productId">상품 ID:</label>
+                        <input type="text" id="productId" placeholder="상품 고유 ID">
+                    </div>
+                    <div class="form-group">
+                        <label for="productName">상품명:</label>
+                        <input type="text" id="productName" placeholder="상품 이름">
+                    </div>
+                    <button class="btn btn-warning" onclick="registerProduct()">상품 등록</button>
+                    <div id="productResult" class="result-box" style="display: none;"></div>
                 </div>
             </div>
 
@@ -305,10 +332,19 @@
                     <button class="btn btn-info" onclick="getAllCandidates()">모든 후보자 조회</button>
                     <div class="form-group" style="margin-top: 1rem;">
                         <label for="searchCandidateId">특정 후보자 조회:</label>
-                        <input type="text" id="searchCandidateId" placeholder="후보자 ID 입력">
+                        <input type="text" id="searchCandidateId" placeholder="후보자 기호번호 입력">
                         <button class="btn" onclick="getCandidateInfo()" style="margin-top: 0.5rem;">조회</button>
                     </div>
                     <div id="candidatesDisplay" class="result-box" style="display: none;"></div>
+                </div>
+            </div>
+
+            <!-- 상품 관리 -->
+            <div class="section">
+                <div class="section-header">🛒 상품 관리</div>
+                <div class="section-content">
+                    <button class="btn btn-info" onclick="getAllProducts()">모든 상품 조회</button>
+                    <div id="productsDisplay" class="result-box" style="display: none;"></div>
                 </div>
             </div>
         </div>
@@ -426,6 +462,37 @@
             })
             .catch(error => {
                 showResult('candidateResult', '등록 실패: ' + error.message, 'error');
+            });
+        }
+
+        function registerProduct() {
+            const productId = document.getElementById('productId').value;
+            const productName = document.getElementById('productName').value;
+
+            if (!productId || !productName) {
+                showResult('productResult', '상품 ID와 상품명을 모두 입력해주세요.', 'error');
+                return;
+            }
+
+            fetch(`/admin/registerProduct?productId=${encodeURIComponent(productId)}&productName=${encodeURIComponent(productName)}`, {
+                headers: {
+                    'admin-key': adminKey
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                try {
+                    const result = safeParseResponse(data);
+                    showResult('productResult', result.message || '상품이 등록되었습니다.', 'success');
+                    // 폼 초기화
+                    document.getElementById('productId').value = '';
+                    document.getElementById('productName').value = '';
+                } catch (error) {
+                    showResult('productResult', error.message, 'error');
+                }
+            })
+            .catch(error => {
+                showResult('productResult', '상품 등록 실패: ' + error.message, 'error');
             });
         }
 
@@ -561,7 +628,7 @@
                     candidates.forEach(candidate => {
                         candidatesHtml += `
                             <div class="candidate-item">
-                                <strong>ID:</strong> ${candidate.id}<br>
+                                <strong>기호번호:</strong> ${candidate.id}<br>
                                 <strong>이름:</strong> ${candidate.name}<br>
                                 <strong>정당:</strong> ${candidate.partyName}<br>
                                 <strong>득표수:</strong> ${candidate.voteCount}표<br>
@@ -583,7 +650,7 @@
         function getCandidateInfo() {
             const candidateId = document.getElementById('searchCandidateId').value;
             if (!candidateId) {
-                showResult('candidatesDisplay', '후보자 ID를 입력해주세요.', 'error');
+                showResult('candidatesDisplay', '후보자 기호번호를 입력해주세요.', 'error');
                 return;
             }
 
@@ -598,7 +665,7 @@
                     const candidate = safeParseResponse(data);
                     const candidateHtml = `
                         <div class="candidate-item">
-                            <strong>ID:</strong> ${candidate.id}<br>
+                            <strong>기호번호:</strong> ${candidate.id}<br>
                             <strong>이름:</strong> ${candidate.name}<br>
                             <strong>정당:</strong> ${candidate.partyName}<br>
                             <strong>득표수:</strong> ${candidate.voteCount}표<br>
@@ -612,6 +679,43 @@
             })
             .catch(error => {
                 showResult('candidatesDisplay', '조회 실패: ' + error.message, 'error');
+            });
+        }
+
+        function getAllProducts() {
+            fetch('/admin/getAllProducts', {
+                headers: {
+                    'admin-key': adminKey
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                try {
+                    const products = safeParseResponse(data);
+                    if (products.length === 0) {
+                        showResult('productsDisplay', '등록된 상품이 없습니다.', 'error');
+                        return;
+                    }
+                    
+                    let productsHtml = '<div class="product-list">';
+                    products.forEach(product => {
+                        productsHtml += `
+                            <div class="product-item">
+                                <strong>상품 ID:</strong> ${product.productId}<br>
+                                <strong>상품명:</strong> ${product.productName}<br>
+                                <strong>총 구매 횟수:</strong> ${product.productBalance}회<br>
+                                <strong>등록일:</strong> ${new Date(product.registeredAt).toLocaleString()}
+                            </div>
+                        `;
+                    });
+                    productsHtml += '</div>';
+                    showResult('productsDisplay', productsHtml, 'success', true);
+                } catch (error) {
+                    showResult('productsDisplay', error.message, 'error');
+                }
+            })
+            .catch(error => {
+                showResult('productsDisplay', '상품 조회 실패: ' + error.message, 'error');
             });
         }
 

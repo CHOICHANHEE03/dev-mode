@@ -355,6 +355,10 @@
                     <label for="voterRrn">주민등록번호 뒷 7자리:</label>
                     <input type="password" id="voterRrn" placeholder="1234567" maxlength="7">
                 </div>
+                <div class="form-group">
+                    <label for="voterAddr">주소:</label>
+                    <input type="text" id="voterAddr" placeholder="예) 경기도 화성시 능동">
+                </div>
                 <button class="btn" onclick="registerVoter()">유권자 등록</button>
                 <button class="btn btn-secondary" onclick="checkVoterStatus()">등록 상태 확인</button>
                 <div id="voterRegisterResult" class="result-box" style="display: none;"></div>
@@ -396,6 +400,27 @@
                 </div>
                 <button class="btn btn-secondary" onclick="checkMyVoteInfo()">내 정보 확인</button>
                 <div id="myVoteResult" class="result-box" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- 상품 구매 -->
+        <div class="section">
+            <div class="section-header">🛍️ 상품 구매</div>
+            <div class="section-content">
+                <div class="token-box">
+                    <strong>🪙 토큰 시스템:</strong><br>
+                    • 투표 완료 시 토큰 1개가 지급됩니다.<br>
+                    • 토큰으로 다양한 상품을 구매할 수 있습니다.<br>
+                    • 각 상품은 토큰 1개로 구매 가능합니다.
+                </div>
+
+                <button class="btn btn-warning" onclick="loadProducts()">상품 목록 불러오기</button>
+
+                <div id="productsList" class="product-list" style="display: none;">
+                    <!-- 상품 목록이 여기에 동적으로 추가됩니다 -->
+                </div>
+
+                <div id="purchaseResult" class="result-box" style="display: none;"></div>
             </div>
         </div>
     </div>
@@ -507,9 +532,10 @@
         function registerVoter() {
             const name = document.getElementById('voterName').value;
             const rrn = document.getElementById('voterRrn').value;
+            const addr = document.getElementById('voterAddr').value;
 
-            if (!name || !rrn) {
-                showResult('voterRegisterResult', '이름과 주민등록번호 뒷 7자리를 모두 입력해주세요.', 'error');
+            if (!name || !rrn || !addr) {
+                showResult('voterRegisterResult', '이름과 주민등록번호 뒷 7자리 및 주소를 모두 입력해주세요.', 'error');
                 return;
             }
 
@@ -518,7 +544,7 @@
                 return;
             }
 
-            fetch(`/voter/registerVoter?name=${encodeURIComponent(name)}&rrnSuffix=${encodeURIComponent(rrn)}`)
+            fetch(`/voter/registerVoter?name=${encodeURIComponent(name)}&rrnSuffix=${encodeURIComponent(rrn)}&addr=${encodeURIComponent(addr)}`)
                 .then(response => response.json())
                 .then(data => {
                     try {
@@ -553,6 +579,7 @@
                         <div class="voter-${voter.hasVoted ? 'voted' : 'registered'}">
                             <strong>등록 상태:</strong> ${voter.hasVoted ? '투표 완료' : '등록 완료'}<br>
                             <strong>이름:</strong> ${voter.name}<br>
+                            <strong>주소:</strong> ${voter.addr}<br>
                             <strong>등록일:</strong> ${new Date(voter.registeredAt).toLocaleString()}<br>
                             ${voter.hasVoted ? `<strong>투표일:</strong> ${new Date(voter.votedAt).toLocaleString()}` : ''}
                         </div>
@@ -603,7 +630,7 @@
                     <div class="candidate-item">
                         <div class="candidate-info">
                             <div class="candidate-name">${candidate.name}</div>
-                            <div class="candidate-party">${candidate.partyName} (ID: ${candidate.id})</div>
+                            <div class="candidate-party">${candidate.partyName} (기호번호: ${candidate.id})</div>
                         </div>
                         <button class="vote-button" onclick="confirmVote('${candidate.name}')">
                             이 후보자에게 투표
@@ -654,6 +681,85 @@
                 });
         }
 
+
+                function loadProducts() {
+            fetch('/voter/getAllProducts')
+                .then(response => response.json())
+                .then(data => {
+                    try {
+                        products = safeParseResponse(data);
+                        if (products.length === 0) {
+                            showResult('purchaseResult', '등록된 상품이 없습니다.', 'error');
+                            return;
+                        }
+
+                        displayProducts();
+                        document.getElementById('productsList').style.display = 'block';
+                    } catch (error) {
+                        showResult('purchaseResult', error.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    showResult('purchaseResult', '상품 목록 로드 실패: ' + error.message, 'error');
+                });
+        }
+
+        function displayProducts() {
+            const productsList = document.getElementById('productsList');
+            let productsHtml = '<h3>🛍️ 구매 가능한 상품</h3>';
+
+            products.forEach(product => {
+                productsHtml += `
+                    <div class="product-item">
+                        <div class="product-info">
+                            <div class="product-name">${product.productName}</div>
+                            <div class="product-id">상품 ID: ${product.productId} | 구매 가격: 토큰 1개</div>
+                        </div>
+                        <button class="buy-button" onclick="confirmPurchase('${product.productName}')">
+                            구매하기
+                        </button>
+                    </div>
+                `;
+            });
+
+            productsList.innerHTML = productsHtml;
+        }
+
+        function confirmPurchase(productName) {
+            if (!confirm(`정말로 '${productName}' 상품을 구매하시겠습니까?\n\n토큰 1개가 차감됩니다.`)) {
+                return;
+            }
+
+            // 구매자 정보 입력 요청
+            const voterName = prompt('구매자 이름을 입력하세요:');
+            if (!voterName) return;
+
+            const voterRrn = prompt('주민등록번호 뒷 7자리를 입력하세요:');
+            if (!voterRrn || voterRrn.length !== 7) {
+                alert('주민등록번호 뒷 7자리를 정확히 입력해주세요.');
+                return;
+            }
+
+            // 구매 실행
+            purchaseProduct(productName, voterName, voterRrn);
+        }
+
+        function purchaseProduct(productName, voterName, voterRrn) {
+            fetch(`/voter/purchaseProduct?productName=${encodeURIComponent(productName)}&voterName=${encodeURIComponent(voterName)}&rrnSuffix=${encodeURIComponent(voterRrn)}`)
+                .then(response => response.json())
+                .then(data => {
+                    try {
+                        const result = safeParseResponse(data);
+                        showResult('purchaseResult', `🎉 ${result.message}`, 'success');
+                    } catch (error) {
+                        showResult('purchaseResult', error.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    showResult('purchaseResult', '구매 실패: ' + error.message, 'error');
+                });
+        }
+
         function checkMyVoteInfo() {
             const name = document.getElementById('checkName').value;
             const rrn = document.getElementById('checkRrn').value;
@@ -671,6 +777,8 @@
                         const infoHtml = `
                         <div class="voter-${voter.hasVoted ? 'voted' : 'registered'}">
                             <strong>이름:</strong> ${voter.name}<br>
+                            <strong>주소:</string> ${voter.addr}<br>
+                            <strong>상품 토큰:</strong> ${voter.voterBalance}<br>
                             <strong>등록일:</strong> ${new Date(voter.registeredAt).toLocaleString()}<br>
                             <strong>투표 상태:</strong> ${voter.hasVoted ? '투표 완료' : '투표 대기'}<br>
                             ${voter.hasVoted ? `<strong>투표일:</strong> ${new Date(voter.votedAt).toLocaleString()}<br>` : ''}
