@@ -87,6 +87,12 @@ app.get('/admin/getCandidateInfo', authenticateAdmin, function (req, res) {
     sdk.send(true, 'getCandidateInfo', args, res);
 });
 
+// get all products (관리자가 볼 수 있는 상품 목록)
+app.get('/admin/getAllProducts', function (req, res) {
+    let args = [];
+    sdk.send(true, 'getAllProducts', args, res);
+});
+
 // ============ 투표자 전용 API ============
 
 // Register a voter
@@ -148,6 +154,12 @@ app.get('/voter/purchaseProduct', function (req, res) {
 
     const args = [productName, voterName, rrnSuffix];
     sdk.send(false, 'purchaseProduct', args, res);
+});
+
+// get all products (투표자가 볼 수 있는 상품 목록)
+app.get('/voter/getAllProducts', function (req, res) {
+    let args = [];
+    sdk.send(true, 'getAllProducts', args, res);
 });
 
 // ============ 공통 API ============

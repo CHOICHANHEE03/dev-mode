@@ -72,10 +72,10 @@ class VotingSystem {
       throw new Error('Incorrect number of arguments. Expecting 2 (productId, name)');
     }
     const productId = args[0];
-    const name = args[1];
+    const productName = args[1];
 
     // 입력 검증
-    if (!productId || !name) {
+    if (!productId || !productName) {
       throw new Error('productId and name cannot be empty');
     }
     const productAsBytes = await stub.getState(productId);
@@ -85,7 +85,7 @@ class VotingSystem {
     const product = {
       docType: 'product',
       productId: productId,
-      productName: name,
+      productName: productName,
       productBalance: 0,
       registeredAt: new Date().toISOString()
     };
@@ -93,7 +93,7 @@ class VotingSystem {
     console.info('========= Register Product Complete =========');
     // 안전한 Buffer 반환
     const response = { 
-      message: `상품 ${name}가 성공적으로 등록되었습니다.` 
+      message: `상품 ${productName}가 성공적으로 등록되었습니다.` 
     };
     return Buffer.from(JSON.stringify(response));
   }
@@ -349,15 +349,28 @@ class VotingSystem {
     if (voter.voterBalance <= 0) {
       throw new Error(`투표자 ${voterName}는 토큰이 없습니다.`);
     }
-    const productAsBytes = await stub.getState(productName);
-    if (!productAsBytes || productAsBytes.length === 0) {
-      throw new Error(`Product ${productName} is not registered`);
+
+    // 상품 이름으로 찾기
+    const iterator = await stub.getStateByRange('', '');
+    let product = null;
+    let productKey = null;
+    while (true) {
+      const res = await iterator.next();
+      if (res.value && res.value.value.toString()) {
+        const record = JSON.parse(res.value.value.toString('utf8'));
+        if (record.docType === 'product' && record.productName === productName) {
+          product = record;
+          productKey = res.value.key;
+          break;
+        }
+      }
+      if (res.done) break;
     }
-    const product = JSON.parse(productAsBytes.toString());
+    await iterator.close();
     product.productBalance += 1; // 상품 구매시 1 증가
     voter.voterBalance -= 1; // 유권자 토큰 차감
     await stub.putState(voterKey, Buffer.from(JSON.stringify(voter)));
-    await stub.putState(productName, Buffer.from(JSON.stringify(product)));
+    await stub.putState(productKey, Buffer.from(JSON.stringify(product)));
 
     console.info('========= Purchase Product Complete =========');
     return Buffer.from(JSON.stringify({
@@ -512,6 +525,37 @@ class VotingSystem {
     
     console.info('========= Get All Candidates Complete =========');
     return Buffer.from(JSON.stringify(candidates));
+  }
+
+  //모든 상품 정보를 가져오는 함수
+  async getAllProducts(stub, args) {
+    console.info('========= Get All Products Start =========');
+    if (args.length !== 0) {
+      throw new Error('Incorrect number of arguments. Expecting 0');
+    }
+    
+    const iterator = await stub.getStateByRange('', '');
+    const products = [];
+    
+    try {
+      while (true) {
+        const res = await iterator.next();
+        if (res.value && res.value.value.toString()) {
+          const record = JSON.parse(res.value.value.toString('utf8'));
+          if (record.docType === 'product') {
+            products.push(record);
+          }
+        }
+        if (res.done) {
+          break;
+        }
+      }
+    } finally {
+      await iterator.close();
+    }
+    
+    console.info('========= Get All Products Complete =========');
+    return Buffer.from(JSON.stringify(products));
   }
 }
 
