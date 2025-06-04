@@ -6,6 +6,8 @@
 
 const shim = require('fabric-shim');
 const crypto = require('crypto');
+const mysql = require('mysql2/promise');
+const bcrypt = require('bcrypt');
 
 console.log('Starting VotingSystem.js...');
 
