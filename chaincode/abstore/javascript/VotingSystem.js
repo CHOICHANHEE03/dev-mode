@@ -539,6 +539,7 @@ class VotingSystem {
       totalVoters: votingStatus.totalVoters,
       totalVotes: votingStatus.totalVotes,
       participationRate: participationRate,
+      initializedAt: votingStatus.initializedAt || null,
       scheduledEndTime: votingStatus.scheduledEndTime || null,
       durationMinutes: votingStatus.durationMinutes || null,
       endReason: votingStatus.endReason || null,
