@@ -49,8 +49,8 @@ class VotingSystem {
         isActive: true,
         totalVoters: 0,
         totalVotes: 0,
-        initializedAt: now.toISOString(),
-        scheduledEndTime: endTime.toISOString(),
+        initializedAt: now.toISOString(), // 투표 시작 시간
+        scheduledEndTime: endTime.toISOString(), // 투표 종료 시간
         durationMinutes: durationMinutes,
         autoEndEnabled: true
       };
