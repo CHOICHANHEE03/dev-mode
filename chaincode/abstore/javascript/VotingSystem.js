@@ -17,28 +17,82 @@ class VotingSystem {
     return shim.success(Buffer.from('{"message": "Init called successfully"}'));
   }
 
-  // Init 대신 일반 함수로 초기화 처리
+  // Init 대신 일반 함수로 초기화 처리, 투표 시간 설정
   async initializeVotingSystem(stub, args) {
     console.info('========= Initialize Voting System =========');
+    
+    // 투표 시간 필수 입력으로 변경
+    if (args.length !== 1) {
+      throw new Error('투표 시간(분)을 반드시 입력해야 합니다. 사용법: initializeVotingSystem(분)');
+    }
+    
+    const durationMinutes = parseInt(args[0]);
+    
+    // 입력값 검증
+    if (isNaN(durationMinutes)) {
+      throw new Error('투표 시간은 숫자로 입력해야 합니다.');
+    }
+    
+    if (durationMinutes < 1) {
+      throw new Error('투표 시간은 최소 1분 이상이어야 합니다.');
+    }
+    
+    if (durationMinutes > 1440) { // 24시간 제한
+      throw new Error('투표 시간은 최대 1440분(24시간)을 초과할 수 없습니다.');
+    }
+    
     try {
+      const now = new Date();
+      const endTime = new Date(now.getTime() + (durationMinutes * 60 * 1000));
+      
       const votingActive = {
         isActive: true,
         totalVoters: 0,
         totalVotes: 0,
-        initializedAt: new Date().toISOString()
+        initializedAt: now.toISOString(),
+        scheduledEndTime: endTime.toISOString(),
+        durationMinutes: durationMinutes,
+        autoEndEnabled: true
       };
       
       await stub.putState('votingActive', Buffer.from(JSON.stringify(votingActive)));
       console.info('Voting system initialized successfully');
+      console.info(`투표가 ${durationMinutes}분 후인 ${endTime.toLocaleString()}에 자동 종료됩니다.`);
       
       return Buffer.from(JSON.stringify({
-        message: '투표 시스템이 성공적으로 초기화되었습니다.',
-        status: 'success'
+        message: `투표 시스템이 ${durationMinutes}분 동안 진행되도록 설정하였습니다.`,
+        status: 'success',
+        durationMinutes: durationMinutes,
+        scheduledEndTime: endTime.toISOString(),
+        scheduledEndTimeLocal: endTime.toLocaleString()
       }));
     } catch (error) {
       console.error('Initialize error:', error);
       throw new Error(`초기화 실패: ${error.message}`);
     }
+  }
+
+  // 투표 시간 자동 체크 및 종료 함수
+  async checkAndAutoEndVoting(stub, votingStatus) {
+    if (!votingStatus.isActive || !votingStatus.autoEndEnabled || !votingStatus.scheduledEndTime) {
+      return votingStatus; // 변경 없음
+    }
+    
+    const now = new Date();
+    const endTime = new Date(votingStatus.scheduledEndTime);
+    
+    if (now >= endTime) {
+      console.info('자동 투표 종료 시간 도달:', endTime.toISOString());
+      
+      votingStatus.isActive = false;
+      votingStatus.endedAt = now.toISOString();
+      votingStatus.endReason = 'auto'; // 자동 종료임을 표시
+      
+      await stub.putState('votingActive', Buffer.from(JSON.stringify(votingStatus)));
+      console.info('투표가 자동으로 종료되었습니다.');
+    } 
+    
+    return votingStatus;
   }
 
   async Invoke(stub) {
@@ -139,11 +193,11 @@ class VotingSystem {
   }
 
 
-  //유권자 등록 함수
+  //유권자 등록 함수, 투표 시간에 도달하면 자동 종료 체크 추가
   async registerVoter(stub, args) {
     console.info('========= Register Voter Start =========');
     if (args.length !== 3) {
-      throw new Error('Incorrect number of arguments. Expecting 2 (name, residentNumberLast7, addr)');
+      throw new Error('Incorrect number of arguments. Expecting 3 (name, residentNumberLast7, addr)');
     }
     
     const name = args[0];
@@ -172,15 +226,13 @@ class VotingSystem {
       }
 
       let votingStatus = JSON.parse(votingStatusAsBytes.toString());
-      try {
-        console.info('Parsed votingStatus:', votingStatus);
-      } catch (parseError) {
-        console.error('Failed to parse votingActive:', parseError);
-        throw new Error(`Failed to parse votingActive state: ${parseError.message}`);
-      }
-
+      
+      // 자동 종료 체크 (새로 추가)
+      votingStatus = await this.checkAndAutoEndVoting(stub, votingStatus);
+      
       if (!votingStatus.isActive) {
-        throw new Error('투표가 종료되어 더 이상 유권자 등록이 불가능합니다.');
+        const endReason = votingStatus.endReason === 'auto' ? '자동으로' : '수동으로';
+        throw new Error(`투표가 ${endReason} 종료되어 더 이상 유권자 등록이 불가능합니다.`);
       }
 
       const voter = {
@@ -197,7 +249,6 @@ class VotingSystem {
       await stub.putState(voterKey, Buffer.from(JSON.stringify(voter)));
 
       votingStatus.totalVoters += 1;
-
       await stub.putState('votingActive', Buffer.from(JSON.stringify(votingStatus)));
       
       console.info('========= Register Voter Complete =========');
@@ -210,87 +261,92 @@ class VotingSystem {
     }
   }
 
-  //투표 함수
-  // 유권자 ID와 후보자 ID를 인자로 받아 투표를 처리
+  //투표 함수 투표 시간에 도달하면 자동 종료 체크 추가
+  // 유권자 이름과 주민등록번호 뒷자리 7자리로 투표
   async vote(stub, args) {
-  console.info('========= Vote by Name Start =========');
-  if (args.length !== 3) {
-    throw new Error('Incorrect number of arguments. Expecting 3 (voterName, candidateName, residentNumberLast7)');
-  }
-
-  const voterName = args[0];
-  const residentNumberLast7 = args[1];
-  const candidateName = args[2];
-
-  if (!voterName || !residentNumberLast7 || !candidateName) {
-    throw new Error('voterName or candidateName or residentNumberLast7 cannot be empty');
-  }
-
-  const hashedResident = this.hashResidentNumber(residentNumberLast7);
-  const voterKey = `voter_${voterName}_${hashedResident}`;
-
-  const votingStatusAsBytes = await stub.getState('votingActive');
-  if (!votingStatusAsBytes || votingStatusAsBytes.length === 0) {
-    throw new Error('votingActive state not found');
-  }
-
-  const votingStatus = JSON.parse(votingStatusAsBytes.toString());
-  if (!votingStatus.isActive) {
-    throw new Error('투표가 이미 종료되었습니다.');
-  }
-
-  const voterAsBytes = await stub.getState(voterKey);
-  if (!voterAsBytes || voterAsBytes.length === 0) {
-    throw new Error(`유권자 ${voterName}는 등록되지 않은 유권자입니다.`);
-  }
-
-  const voter = JSON.parse(voterAsBytes.toString());
-  if (voter.hasVoted) {
-    throw new Error(`유권자 ${voterName}는 이미 투표를 하였습니다.`);
-  }
-
-  //후보자 이름으로 찾기
-  const iterator = await stub.getStateByRange('', '');
-  let candidate = null;
-  let candidateKey = null;
-  while (true) {
-    const res = await iterator.next();
-    if (res.value && res.value.value.toString()) {
-      const record = JSON.parse(res.value.value.toString('utf8'));
-      if (record.docType === 'candidate' && record.name === candidateName) {
-        candidate = record;
-        candidateKey = res.value.key;
-        break;
-      }
+    console.info('========= Vote by Name Start =========');
+    if (args.length !== 3) {
+      throw new Error('Incorrect number of arguments. Expecting 3 (voterName, residentNumberLast7, candidateName)');
     }
-    if (res.done) break;
-  }
-  await iterator.close();
 
-  if (!candidate) throw new Error(`등록되지 않은 후보자 이름: ${candidateName}`);
+    const voterName = args[0];
+    const residentNumberLast7 = args[1];
+    const candidateName = args[2];
 
-  candidate.voteCount += 1;
-  await stub.putState(candidateKey, Buffer.from(JSON.stringify(candidate)));
+    if (!voterName || !residentNumberLast7 || !candidateName) {
+      throw new Error('voterName, residentNumberLast7, candidateName cannot be empty');
+    }
 
-  voter.hasVoted = true;
-  voter.votedFor = candidate.id;
-  voter.votedAt = new Date().toISOString();
-  if(voter.hasVoted == true){
+    const hashedResident = this.hashResidentNumber(residentNumberLast7);
+    const voterKey = `voter_${voterName}_${hashedResident}`;
+
+    const votingStatusAsBytes = await stub.getState('votingActive');
+    if (!votingStatusAsBytes || votingStatusAsBytes.length === 0) {
+      throw new Error('votingActive state not found');
+    }
+
+    let votingStatus = JSON.parse(votingStatusAsBytes.toString());
+    
+    // 자동 종료 체크 (새로 추가)
+    votingStatus = await this.checkAndAutoEndVoting(stub, votingStatus);
+    
+    if (!votingStatus.isActive) {
+      const endReason = votingStatus.endReason === 'auto' ? '자동으로' : '수동으로';
+      throw new Error(`투표가 ${endReason} 종료되었습니다.`);
+    }
+
+    const voterAsBytes = await stub.getState(voterKey);
+    if (!voterAsBytes || voterAsBytes.length === 0) {
+      throw new Error(`유권자 ${voterName}는 등록되지 않은 유권자입니다.`);
+    }
+
+    const voter = JSON.parse(voterAsBytes.toString());
+    if (voter.hasVoted) {
+      throw new Error(`유권자 ${voterName}는 이미 투표를 하였습니다.`);
+    }
+
+    //후보자 이름으로 찾기
+    const iterator = await stub.getStateByRange('', '');
+    let candidate = null;
+    let candidateKey = null;
+    while (true) {
+      const res = await iterator.next();
+      if (res.value && res.value.value.toString()) {
+        const record = JSON.parse(res.value.value.toString('utf8'));
+        if (record.docType === 'candidate' && record.name === candidateName) {
+          candidate = record;
+          candidateKey = res.value.key;
+          break;
+        }
+      }
+      if (res.done) break;
+    }
+    await iterator.close();
+
+    if (!candidate) throw new Error(`등록되지 않은 후보자 이름: ${candidateName}`);
+
+    candidate.voteCount += 1;
+    await stub.putState(candidateKey, Buffer.from(JSON.stringify(candidate)));
+
+    voter.hasVoted = true;
+    voter.votedFor = candidate.id;
+    voter.votedAt = new Date().toISOString();
     voter.voterBalance += 1; // 유권자에게 보상 지급
+    await stub.putState(voterKey, Buffer.from(JSON.stringify(voter)));
+
+    votingStatus.totalVotes += 1;
+    await stub.putState('votingActive', Buffer.from(JSON.stringify(votingStatus)));
+
+    console.info('========= Vote by Name Complete =========');
+    return Buffer.from(JSON.stringify({
+      message: `유권자 ${voter.name}가 ${candidate.name} 후보자에게 성공적으로 투표했습니다. 토큰 1개가 지급되었습니다.`,
+      candidateName: candidate.name,
+      candidateVotes: candidate.voteCount,
+      voterBalance: voter.voterBalance
+    }));
   }
-  await stub.putState(voterKey, Buffer.from(JSON.stringify(voter)));
 
-  votingStatus.totalVotes += 1;
-  await stub.putState('votingActive', Buffer.from(JSON.stringify(votingStatus)));
-
-  console.info('========= Vote by Name Complete =========');
-  return Buffer.from(JSON.stringify({
-    message: `유권자 ${voter.name}가 ${candidate.name} 후보자에게 성공적으로 투표했습니다.`,
-    candidateName: candidate.name,
-    candidateVotes: candidate.voteCount
-  }));
-}
-
+  // 수동 투표 종료 함수
   async endVoting(stub, args) {
     console.info('========= End Voting Start =========');
     if (args.length !== 0) {
@@ -302,13 +358,19 @@ class VotingSystem {
       throw new Error('votingActive state not found');
     }
     
-    const votingStatus = JSON.parse(votingStatusAsBytes.toString());
+    let votingStatus = JSON.parse(votingStatusAsBytes.toString());
+    
+    // 자동 종료 체크
+    votingStatus = await this.checkAndAutoEndVoting(stub, votingStatus);
+    
     if (!votingStatus.isActive) {
-      throw new Error('투표가 이미 종료되었습니다.');
+      const endReason = votingStatus.endReason === 'auto' ? '자동으로' : '이미';
+      throw new Error(`투표가 ${endReason} 종료되었습니다.`);
     }
 
     votingStatus.isActive = false;
     votingStatus.endedAt = new Date().toISOString();
+    votingStatus.endReason = 'manual'; // 수동 종료임을 표시
     await stub.putState('votingActive', Buffer.from(JSON.stringify(votingStatus)));
     
     console.info('========= End Voting Complete =========');
@@ -316,18 +378,66 @@ class VotingSystem {
       ((votingStatus.totalVotes / votingStatus.totalVoters) * 100).toFixed(2) + '%' : '0.00%';
       
     return Buffer.from(JSON.stringify({
-      message: '투표가 성공적으로 종료되었습니다.',
+      message: '투표가 수동으로 종료되었습니다.',
       totalVoters: votingStatus.totalVoters,
       totalVotes: votingStatus.totalVotes,
-      participationRate: participationRate
+      participationRate: participationRate,
+      endReason: 'manual'
     }));
   }
 
-  // 상품 구매 함수
+  // 투표 시간 연장 함수 (새로 추가)
+  async extendVotingTime(stub, args) {
+    console.info('========= Extend Voting Time Start =========');
+    if (args.length !== 1) {
+      throw new Error('Incorrect number of arguments. Expecting 1 (additionalMinutes)');
+    }
+    
+    const additionalMinutes = parseInt(args[0]);
+    if (isNaN(additionalMinutes) || additionalMinutes < 1) {
+      throw new Error('연장 시간은 1분 이상이어야 합니다.');
+    }
+    
+    const votingStatusAsBytes = await stub.getState('votingActive');
+    if (!votingStatusAsBytes || votingStatusAsBytes.length === 0) {
+      throw new Error('votingActive state not found');
+    }
+    
+    let votingStatus = JSON.parse(votingStatusAsBytes.toString());
+    
+    // 자동 종료 체크
+    votingStatus = await this.checkAndAutoEndVoting(stub, votingStatus);
+    
+    if (!votingStatus.isActive) {
+      throw new Error('종료된 투표는 연장할 수 없습니다.');
+    }
+    
+    if (!votingStatus.scheduledEndTime) {
+      throw new Error('자동 종료가 설정되지 않은 투표는 연장할 수 없습니다.');
+    }
+    
+    const currentEndTime = new Date(votingStatus.scheduledEndTime);
+    const newEndTime = new Date(currentEndTime.getTime() + (additionalMinutes * 60 * 1000));
+    
+    votingStatus.scheduledEndTime = newEndTime.toISOString();
+    votingStatus.durationMinutes += additionalMinutes;
+    votingStatus.extendedAt = new Date().toISOString();
+    
+    await stub.putState('votingActive', Buffer.from(JSON.stringify(votingStatus)));
+    
+    console.info('========= Extend Voting Time Complete =========');
+    return Buffer.from(JSON.stringify({
+      message: `투표 시간이 ${additionalMinutes}분 연장되었습니다.`,
+      newEndTime: newEndTime.toISOString(),
+      totalDuration: votingStatus.durationMinutes
+    }));
+  }
+
+  // 상품 구매 함수,자동 종료 체크 추가
   async purchaseProduct(stub, args) {
     console.info('========= Purchase Product Start =========');
     if(args.length !== 3) {
-      throw new Error('Incorrect number of arguments. Expecting 3 (productId, voterName, residentNumberLast7)');
+      throw new Error('Incorrect number of arguments. Expecting 3 (productName, voterName, residentNumberLast7)');
     }
     const productName = args[0];
     const voterName = args[1];
@@ -336,53 +446,73 @@ class VotingSystem {
     if (!productName || !voterName || !residentNumberLast7) {
       throw new Error('productName, voterName, and residentNumberLast7 cannot be empty');
     }
+    
     const hashedResident = this.hashResidentNumber(residentNumberLast7);
     const voterKey = `voter_${voterName}_${hashedResident}`;
+    
     const voterAsBytes = await stub.getState(voterKey);
     if (!voterAsBytes || voterAsBytes.length === 0) {
-      throw new Error(`Voter ${voterName} is not registered`);
+      throw new Error(`투표자 ${voterName}는 등록되지 않은 투표자입니다.`);
     }
+    
     const voter = JSON.parse(voterAsBytes.toString());
     if(!voter.hasVoted) {
       throw new Error(`투표자 ${voterName}는 아직 투표하지 않았습니다. 상품 구매는 투표 후 가능합니다.`);
     }
     if (voter.voterBalance <= 0) {
-      throw new Error(`투표자 ${voterName}는 토큰이 없습니다.`);
+      throw new Error(`투표자 ${voterName}는 토큰이 없습니다. 현재 토큰: ${voter.voterBalance}개`);
     }
 
     // 상품 이름으로 찾기
     const iterator = await stub.getStateByRange('', '');
     let product = null;
     let productKey = null;
-    while (true) {
-      const res = await iterator.next();
-      if (res.value && res.value.value.toString()) {
-        const record = JSON.parse(res.value.value.toString('utf8'));
-        if (record.docType === 'product' && record.productName === productName) {
-          product = record;
-          productKey = res.value.key;
-          break;
+    
+    try {
+      while (true) {
+        const res = await iterator.next();
+        if (res.value && res.value.value.toString()) {
+          try {
+            const record = JSON.parse(res.value.value.toString('utf8'));
+            if (record.docType === 'product' && record.productName === productName) {
+              product = record;
+              productKey = res.value.key;
+              break;
+            }
+          } catch (parseError) {
+            console.log('Skipping non-JSON record:', res.value.key);
+          }
         }
+        if (res.done) break;
       }
-      if (res.done) break;
+    } finally {
+      await iterator.close();
     }
-    await iterator.close();
+    
+    if (!product) {
+      throw new Error(`상품 '${productName}'는 등록되지 않은 상품입니다.`);
+    }
+    
     product.productBalance += 1; // 상품 구매시 1 증가
     voter.voterBalance -= 1; // 유권자 토큰 차감
+    voter.lastPurchase = {
+      productName: productName,
+      purchasedAt: new Date().toISOString()
+    };
+    
     await stub.putState(voterKey, Buffer.from(JSON.stringify(voter)));
     await stub.putState(productKey, Buffer.from(JSON.stringify(product)));
 
     console.info('========= Purchase Product Complete =========');
     return Buffer.from(JSON.stringify({
       message: `투표자 ${voterName}가 상품 ${product.productName}을(를) 성공적으로 구매했습니다.`,
-      productName: productName,
-      productBalance: product.productBalance,
-      voterBalance: voter.voterBalance
+      productName: product.productName,
+      productPurchaseCount: product.productBalance,
+      remainingTokens: voter.voterBalance
     }));
   }
 
-  // 투표결과를 가져오는 함수
-  // getStateByRange를 사용하여 모든 상태를 순회
+  // 투표결과를 가져오는 함수,자동 종료 체크 추가
   async getVotingResults(stub, args) {
     console.info('========= Get Voting Results Start =========');
     if (args.length !== 0) {
@@ -394,7 +524,10 @@ class VotingSystem {
       throw new Error('votingActive state not found');
     }
     
-    const votingStatus = JSON.parse(votingStatusAsBytes.toString());
+    let votingStatus = JSON.parse(votingStatusAsBytes.toString());
+    
+    // 자동 종료 체크
+    votingStatus = await this.checkAndAutoEndVoting(stub, votingStatus);
     
     // getStateByRange를 사용하여 모든 상태를 순회
     const iterator = await stub.getStateByRange('', '');
@@ -406,6 +539,9 @@ class VotingSystem {
       totalVoters: votingStatus.totalVoters,
       totalVotes: votingStatus.totalVotes,
       participationRate: participationRate,
+      scheduledEndTime: votingStatus.scheduledEndTime || null,
+      durationMinutes: votingStatus.durationMinutes || null,
+      endReason: votingStatus.endReason || null,
       candidates: []
     };
     
@@ -425,6 +561,7 @@ class VotingSystem {
               results.candidates.push({
                 id: record.id,
                 name: record.name,
+                partyName: record.partyName,
                 voteCount: record.voteCount,
                 votePercentage: votePercentage
               });
