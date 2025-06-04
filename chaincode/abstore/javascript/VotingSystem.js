@@ -116,7 +116,7 @@ class VotingSystem {
     
     const candidateAsBytes = await stub.getState(candidateId);
     if (candidateAsBytes && candidateAsBytes.length > 0) {
-      throw new Error(`Candidate ${candidateId} is already registered`);
+      throw new Error(`${candidateId}번 후보는 이미 등록되어 있습니다!`);
     }
 
     const candidate = {
@@ -525,6 +525,31 @@ class VotingSystem {
     
     console.info('========= Get All Candidates Complete =========');
     return Buffer.from(JSON.stringify(candidates));
+  }
+
+  // 후보자 지갑을 삭제하는 함수
+  async deleteCandidate(stub, args) {
+    console.info('========= Delete Candidate Wallet Start =========');
+    if (args.length !== 1) {
+      throw new Error('Incorrect number of arguments. Expecting 1 (candidateId)');
+    }
+    
+    const candidateId = args[0];
+    if (!candidateId) {
+      throw new Error('candidateId cannot be empty');
+    }
+    
+    const candidateAsBytes = await stub.getState(candidateId);
+    if (!candidateAsBytes || candidateAsBytes.length === 0) {
+      throw new Error(`$ 기호번호 {candidateId}번 후보는 이미 삭제되어 있습니다!`);
+    }
+    
+    await stub.deleteState(candidateId);
+    
+    console.info('========= Delete Candidate Wallet Complete =========');
+    return Buffer.from(JSON.stringify({
+      message: ` 기호번호 ${candidateId}번 후보는 성공적으로 삭제되었습니다.`
+    }));
   }
 
   //모든 상품 정보를 가져오는 함수

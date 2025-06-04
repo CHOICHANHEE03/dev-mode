@@ -87,6 +87,16 @@ app.get('/admin/getCandidateInfo', authenticateAdmin, function (req, res) {
     sdk.send(true, 'getCandidateInfo', args, res);
 });
 
+// delete a candidate (Admin only)
+app.get('/admin/deleteCandidate', authenticateAdmin, function (req, res) {
+    let candidateId = req.query.candidateId;
+    if (!candidateId) {
+        return res.status(400).json({ error: 'candidateId는 필수입니다.' });
+    }
+    let args = [candidateId];
+    sdk.send(false, 'deleteCandidate', args, res);
+});
+
 // get all products (관리자가 볼 수 있는 상품 목록)
 app.get('/admin/getAllProducts', function (req, res) {
     let args = [];
