@@ -27,10 +27,53 @@ function authenticateAdmin(req, res, next) {
 
 // ============ 관리자 전용 API ============
 
-// Initialize the voting system (Admin only)
+// Initialize the voting system with mandatory time setting (Admin only)
+// 관리자가 필수 시간 설정
 app.get('/admin/init', authenticateAdmin, function (req, res) {
-    let args = [];
+    let durationMinutes = req.query.durationMinutes;
+    
+    // 투표 시간 필수 입력 체크
+    if (!durationMinutes) {
+        return res.status(400).json({ 
+            error: '투표 시간(분)은 필수입니다.',
+            message: 'durationMinutes 파라미터를 입력해주세요. 예: ?durationMinutes=30'
+        });
+    }
+    
+    // 숫자 형식 체크
+    const duration = parseInt(durationMinutes);
+    if (isNaN(duration)) {
+        return res.status(400).json({ 
+            error: '투표 시간은 숫자로 입력해야 합니다.',
+            example: '예: durationMinutes=30'
+        });
+    }
+    
+    // 범위 체크
+    if (duration < 1) {
+        return res.status(400).json({ 
+            error: '투표 시간은 최소 1분 이상이어야 합니다.'
+        });
+    }
+    
+    if (duration > 1440) {
+        return res.status(400).json({ 
+            error: '투표 시간은 최대 1440분(24시간)을 초과할 수 없습니다.'
+        });
+    }
+    
+    let args = [duration.toString()];
     sdk.send(false, 'initializeVotingSystem', args, res);
+});
+
+// Extend voting time (Admin only)
+app.get('/admin/extendVotingTime', authenticateAdmin, function (req, res) {
+    let additionalMinutes = req.query.additionalMinutes;
+    if (!additionalMinutes || isNaN(parseInt(additionalMinutes))) {
+        return res.status(400).json({ error: '연장할 시간(분)을 숫자로 입력해주세요.' });
+    }
+    let args = [additionalMinutes];
+    sdk.send(false, 'extendVotingTime', args, res);
 });
 
 // Register a product (Admin only)
@@ -85,6 +128,16 @@ app.get('/admin/getCandidateInfo', authenticateAdmin, function (req, res) {
     }
     let args = [candidateId];
     sdk.send(true, 'getCandidateInfo', args, res);
+});
+
+// delete a candidate (Admin only)
+app.get('/admin/deleteCandidate', authenticateAdmin, function (req, res) {
+    let candidateId = req.query.candidateId;
+    if (!candidateId) {
+        return res.status(400).json({ error: 'candidateId는 필수입니다.' });
+    }
+    let args = [candidateId];
+    sdk.send(false, 'deleteCandidate', args, res);
 });
 
 // get all products (관리자가 볼 수 있는 상품 목록)
