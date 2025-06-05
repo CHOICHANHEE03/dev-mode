@@ -120,50 +120,6 @@ app.get('/admin/checkMySQLConnection', authenticateAdmin, async function(req, re
     }
 });
 
-// 특정 해시값으로 유권자 검색 (Admin only)
-app.get('/admin/searchVoterByHash', authenticateAdmin, async function(req, res) {
-    try {
-        const { name, rrnFull } = req.query;
-        
-        if (!name || !rrnFull) {
-            return res.status(400).json({ 
-                error: 'name과 rrnFull 파라미터가 필요합니다.',
-                example: '?name=김철수&rrnFull=1234561234567'
-            });
-        }
-        
-        const nameHash = sha256(name);
-        const ssnHash = sha256(rrnFull);
-        
-        const connection = await mysql.createConnection(voting_app);
-        
-        const [rows] = await connection.execute(`
-            SELECT * FROM voters 
-            WHERE name_hash = ? AND ssn_hash = ?
-        `, [nameHash, ssnHash]);
-        
-        await connection.end();
-        
-        res.json({
-            success: true,
-            found: rows.length > 0,
-            data: rows,
-            searchHash: {
-                nameHash: nameHash,
-                ssnHash: ssnHash
-            },
-            message: rows.length > 0 ? '일치하는 유권자를 찾았습니다.' : '일치하는 유권자가 없습니다.'
-        });
-        
-    } catch (err) {
-        console.error('유권자 검색 에러:', err);
-        res.status(500).json({
-            error: '유권자 검색 중 오류가 발생했습니다.',
-            detail: err.message
-        });
-    }
-});
-
 // MySQL 테이블 초기화 (Admin only) - 주의: 모든 데이터 삭제
 app.post('/admin/clearMySQLVoters', authenticateAdmin, async function(req, res) {
     try {
