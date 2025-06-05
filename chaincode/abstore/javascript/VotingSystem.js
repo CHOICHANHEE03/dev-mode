@@ -5,9 +5,9 @@
 */
 
 const shim = require('fabric-shim');
-const crypto = require('crypto');
-const mysql = require('mysql2/promise');
-const bcrypt = require('bcrypt');
+// const crypto = require('crypto');
+// const mysql = require('mysql2/promise');
+// const bcrypt = require('bcrypt');
 
 console.log('Starting VotingSystem.js...');
 
@@ -117,9 +117,9 @@ class VotingSystem {
   }
 
   // 해시함수
-  hashResidentNumber(partialSSN){
-    return crypto.createHash('sha256').update(partialSSN).digest('hex');
-  }
+  // hashResidentNumber(partialSSN){
+  //   return crypto.createHash('sha256').update(partialSSN).digest('hex');
+  // }
 
   //상품 등록 함수
   async registerProduct(stub, args) {
@@ -213,8 +213,8 @@ class VotingSystem {
       throw new Error('residentNumberLast7 and name and addr cannot be empty');
     }
 
-    const hashedResident = this.hashResidentNumber(residentNumberLast7);
-    const voterKey = `voter_${name}_${hashedResident}`;
+    // const hashedResident = this.hashResidentNumber(residentNumberLast7);
+    const voterKey = `voter_${name}_${residentNumberLast7}`;
 
     try {
       const voterAsBytes = await stub.getState(voterKey);
@@ -241,7 +241,7 @@ class VotingSystem {
         docType: 'voter',
         id: voterKey,
         name: name,
-        hashedResident: hashedResident,
+        hashedResident: residentNumberLast7,
         addr: addr,
         hasVoted: false,
         voterBalance: 0,
@@ -279,8 +279,8 @@ class VotingSystem {
       throw new Error('voterName, residentNumberLast7, candidateName cannot be empty');
     }
 
-    const hashedResident = this.hashResidentNumber(residentNumberLast7);
-    const voterKey = `voter_${voterName}_${hashedResident}`;
+    // const hashedResident = this.hashResidentNumber(residentNumberLast7);
+    const voterKey = `voter_${voterName}_${residentNumberLast7}`;
 
     const votingStatusAsBytes = await stub.getState('votingActive');
     if (!votingStatusAsBytes || votingStatusAsBytes.length === 0) {
@@ -449,8 +449,8 @@ class VotingSystem {
       throw new Error('productName, voterName, and residentNumberLast7 cannot be empty');
     }
     
-    const hashedResident = this.hashResidentNumber(residentNumberLast7);
-    const voterKey = `voter_${voterName}_${hashedResident}`;
+    // const hashedResident = this.hashResidentNumber(residentNumberLast7);
+    const voterKey = `voter_${voterName}_${residentNumberLast7}`;
     
     const voterAsBytes = await stub.getState(voterKey);
     if (!voterAsBytes || voterAsBytes.length === 0) {
@@ -602,8 +602,8 @@ class VotingSystem {
       throw new Error('빈칸을 채워주세요!');
     }
 
-    const hashedResident = this.hashResidentNumber(residentNumberLast7);
-    const voterKey = `voter_${voterName}_${hashedResident}`;
+    // const hashedResident = this.hashResidentNumber(residentNumberLast7);
+    const voterKey = `voter_${voterName}_${residentNumberLast7}`;
     
     const voterAsBytes = await stub.getState(voterKey);
     if (!voterAsBytes || voterAsBytes.length === 0) {
