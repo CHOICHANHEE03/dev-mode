@@ -7,7 +7,7 @@ const sdk = require('./sdk');
 const crypto = require('crypto');
 
 const PORT = 8001;
-const HOST = 'localhost';
+const HOST = '0.0.0.0';
 
 app.use(cors());
 app.use(express.json());
@@ -159,44 +159,55 @@ app.post('/admin/clearMySQLVoters', authenticateAdmin, async function(req, res) 
         });
     }
 });
+// 관리자 비밀번호 검증용 API
+app.post('/admin/admin-login', function (req, res) {
+    const adminKey = req.headers['admin-key'];
+
+    if (adminKey === ADMIN_PASSWORD) {
+        return res.status(200).json({ message: '관리자 인증 성공' });
+    } else {
+        return res.status(401).json({ message: '비밀번호가 올바르지 않습니다.' });
+    }
+});
 
 // Initialize the voting system with mandatory time setting (Admin only)
-app.get('/admin/init', authenticateAdmin, function (req, res) {
-    let durationMinutes = req.query.durationMinutes;
-    
+app.post('/admin/init', authenticateAdmin, function (req, res) {
+    const { durationMinutes } = req.body;
+
     // 투표 시간 필수 입력 체크
     if (!durationMinutes) {
         return res.status(400).json({ 
             error: '투표 시간(분)은 필수입니다.',
-            message: 'durationMinutes 파라미터를 입력해주세요. 예: ?durationMinutes=30'
+            message: 'JSON body에 durationMinutes를 포함해주세요. 예: { "durationMinutes": 30 }'
         });
     }
-    
+
     // 숫자 형식 체크
     const duration = parseInt(durationMinutes);
     if (isNaN(duration)) {
         return res.status(400).json({ 
             error: '투표 시간은 숫자로 입력해야 합니다.',
-            example: '예: durationMinutes=30'
+            example: '예: { "durationMinutes": 30 }'
         });
     }
-    
+
     // 범위 체크
     if (duration < 1) {
         return res.status(400).json({ 
             error: '투표 시간은 최소 1분 이상이어야 합니다.'
         });
     }
-    
+
     if (duration > 1440) {
         return res.status(400).json({ 
             error: '투표 시간은 최대 1440분(24시간)을 초과할 수 없습니다.'
         });
     }
-    
-    let args = [duration.toString()];
+
+    const args = [duration.toString()];
     sdk.send(false, 'initializeVotingSystem', args, res);
 });
+
 
 // Extend voting time (Admin only)
 app.get('/admin/extendVotingTime', authenticateAdmin, function (req, res) {
@@ -221,10 +232,8 @@ app.get('/admin/registerProduct', authenticateAdmin, function (req, res) {
 });
 
 // Register a candidate (Admin only)
-app.get('/admin/registerCandidate', authenticateAdmin, function (req, res) {
-    let candidateId = req.query.candidateId;
-    let name = req.query.name;
-    let partyName = req.query.partyName;
+app.post('/admin/registerCandidate', authenticateAdmin, function (req, res) {
+    const { candidateId, name, partyName } = req.body
     
     if (!candidateId || !name || !partyName) {
         return res.status(400).json({ error: 'candidateId, name, partyName는 필수입니다.' });
@@ -375,9 +384,11 @@ app.post('/voter/registerVoterWithMySQL', async function(req, res) {
             await connection.execute(insertQuery, [nameHash, ssnHash, addressHash]);
             
             // Fabric 체인코드 호출 (뒷 7자리만 사용)
-            const rrnSuffix = ssnHash;
-            const args = [name, rrnSuffix, address];
-            
+            const rrnSuffix = rrnFull.slice(-7);
+            const hashedName = sha256(name);
+            const hashedRrnSuffix = sha256(rrnSuffix);
+            const args = [hashedName, hashedRrnSuffix, address];
+
             // 커스텀 응답 처리
             const originalRes = res;
             const customRes = {
@@ -392,7 +403,7 @@ app.post('/voter/registerVoterWithMySQL', async function(req, res) {
                     return originalRes.status(code);
                 }
             };
-            
+
             sdk.send(false, 'registerVoter', args, customRes);
             
         } catch (mysqlError) {
@@ -420,18 +431,16 @@ app.post('/voter/registerVoterWithMySQL', async function(req, res) {
 });
 
 // Cast a vote
-app.get('/voter/vote', function (req, res) {
-    const voterName = req.query.voterName;
-    const rrnSuffix = req.query.rrnSuffix;
-    const candidateName = req.query.candidateName;
-    
+app.post('/voter/vote', function (req, res) {
+    const { voterName, rrnSuffix, candidateName } = req.body;
+
     if (!voterName || !rrnSuffix || !candidateName) {
         return res.status(400).json({ error: 'voterName, rrnSuffix, candidateName는 필수입니다.' });
     }
-    
-    const hashrnn = sha256(rrnSuffix);
 
+    const hashrnn = sha256(rrnSuffix);
     const args = [voterName, hashrnn, candidateName];
+
     sdk.send(false, 'vote', args, res);
 });
 
