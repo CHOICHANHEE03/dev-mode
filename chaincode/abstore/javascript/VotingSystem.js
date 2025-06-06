@@ -211,7 +211,7 @@ class VotingSystem {
       throw new Error('residentNumberLast7 and name and addr cannot be empty');
     }
 
-    const hashedName = this.hashResidentNumber(name);
+    const hashedName = name;
     const voterKey = `voter_${hashedName}_${residentNumberLast7}`;
 
     try {
