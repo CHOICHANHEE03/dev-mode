@@ -720,6 +720,32 @@ class VotingSystem {
     console.info('========= Get All Products Complete =========');
     return Buffer.from(JSON.stringify(products));
   }
+  // 상품 삭제 함수
+async deleteProduct(stub, args) {
+  console.info('========= Delete Product Start =========');
+
+  // 인자 개수 확인
+  if (args.length !== 1) {
+    throw new Error('Incorrect number of arguments. Expecting 1');
+  }
+
+  const productId = args[0];  // 삭제할 상품의 ID
+
+  // 해당 상품 상태 가져오기
+  const productAsBytes = await stub.getState(productId);
+
+  // 상품이 존재하지 않으면 오류 발생
+  if (!productAsBytes || productAsBytes.toString().length <= 0) {
+    throw new Error(`Product with ID ${productId} does not exist`);
+  }
+
+  // 상품 삭제
+  // await stub.deleteState(productId);
+  // console.info(`Product with ID ${productId} has been deleted`);
+
+  // console.info('========= Delete Product Complete =========');
+}
+
 }
 
 console.log('Starting VotingSystem...');
