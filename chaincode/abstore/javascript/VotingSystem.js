@@ -106,21 +106,22 @@ class VotingSystem {
   }
 
 
-  //유권자 등록 함수
+    //유권자 등록 함수
   async registerVoter(stub, args) {
     console.info('========= Register Voter Start =========');
-    if (args.length !== 2) {
-      throw new Error('Incorrect number of arguments. Expecting 2 (name, residentNumberLast7)');
+    if (args.length !== 3) {
+      throw new Error('Incorrect number of arguments. Expecting 2 (name, residentNumberLast7, addr)');
     }
     
     const name = args[0];
     const residentNumberLast7 = args[1];
+    const addr = args[2];
     
     console.info('Received residentNumberLast7:', residentNumberLast7, 'name:', name);
 
     // 입력 검증
-    if (!name || !residentNumberLast7) {
-      throw new Error('residentNumberLast7 and name cannot be empty');
+    if (!name || !residentNumberLast7 || !addr) {
+      throw new Error('residentNumberLast7 and name and addr cannot be empty');
     }
 
     const hashedResident = this.hashResidentNumber(residentNumberLast7);
@@ -154,7 +155,9 @@ class VotingSystem {
         id: voterKey,
         name: name,
         hashedResident: hashedResident,
+        addr: addr,
         hasVoted: false,
+        voterBalance: 0,
         registeredAt: new Date().toISOString()
       };
       
@@ -173,6 +176,33 @@ class VotingSystem {
       throw new Error(`Failed to register voter: ${error.message}`);
     }
   }
+
+
+  // 후보자 지갑을 삭제하는 함수
+  async deleteCandidate(stub, args) {
+    console.info('========= Delete Candidate Wallet Start =========');
+    if (args.length !== 1) {
+      throw new Error('Incorrect number of arguments. Expecting 1 (candidateId)');
+    }
+    
+    const candidateId = args[0];
+    if (!candidateId) {
+      throw new Error('candidateId cannot be empty');
+    }
+    
+    const candidateAsBytes = await stub.getState(candidateId);
+    if (!candidateAsBytes || candidateAsBytes.length === 0) {
+      throw new Error(`$ 기호번호 {candidateId}번 후보는 이미 삭제되어 있습니다!`);
+    }
+    
+    await stub.deleteState(candidateId);
+    
+    console.info('========= Delete Candidate Wallet Complete =========');
+    return Buffer.from(JSON.stringify({
+      message: ` 기호번호 ${candidateId}번 후보는 성공적으로 삭제되었습니다.`
+    }));
+  }
+
 
   //투표 함수
   // 유권자 ID와 후보자 ID를 인자로 받아 투표를 처리
@@ -275,16 +305,19 @@ class VotingSystem {
     console.info('========= End Voting Complete =========');
     const participationRate = votingStatus.totalVoters > 0 ? 
       ((votingStatus.totalVotes / votingStatus.totalVoters) * 100).toFixed(2) + '%' : '0.00%';
+
+    const statusLabel = "종료됨";
       
     return Buffer.from(JSON.stringify({
       message: '투표가 성공적으로 종료되었습니다.',
       totalVoters: votingStatus.totalVoters,
       totalVotes: votingStatus.totalVotes,
-      participationRate: participationRate
+      participationRate: participationRate,
+      status: statusLabel
     }));
   }
 
-  // 투표결과를 가져오는 함수
+  // 투표결과를 가져오는 함수f
   // getStateByRange를 사용하여 모든 상태를 순회
   async getVotingResults(stub, args) {
     console.info('========= Get Voting Results Start =========');
@@ -398,6 +431,39 @@ class VotingSystem {
     return candidateAsBytes;
   }
 
+    //상품 등록 함수
+  async registerProduct(stub, args) {
+    console.info('========= Register Product Start =========');
+    if (args.length !== 2) {
+      throw new Error('Incorrect number of arguments. Expecting 2 (productId, name)');
+    }
+    const productId = args[0];
+    const productName = args[1];
+
+    // 입력 검증
+    if (!productId || !productName) {
+      throw new Error('productId and name cannot be empty');
+    }
+    const productAsBytes = await stub.getState(productId);
+    if (productAsBytes && productAsBytes.length > 0) {
+      throw new Error(`Product ${productId} is already registered`);
+    }
+    const product = {
+      docType: 'product',
+      productId: productId,
+      productName: productName,
+      productBalance: 0,
+      registeredAt: new Date().toISOString()
+    };
+    await stub.putState(productId, Buffer.from(JSON.stringify(product)));
+    console.info('========= Register Product Complete =========');
+    // 안전한 Buffer 반환
+    const response = { 
+      message: `상품 ${productName}가 성공적으로 등록되었습니다.` 
+    };
+    return Buffer.from(JSON.stringify(response));
+  }
+
 
   // 모든 후보자 정보를 가져오는 함수
   async getAllCandidates(stub, args) {
@@ -425,11 +491,47 @@ class VotingSystem {
     } finally {
       await iterator.close();
     }
+
+    
     
     console.info('========= Get All Candidates Complete =========');
     return Buffer.from(JSON.stringify(candidates));
   }
+
+
+//모든 상품 정보를 가져오는 함수
+  async getAllProducts(stub, args) {
+    console.info('========= Get All Products Start =========');
+    if (args.length !== 0) {
+      throw new Error('Incorrect number of arguments. Expecting 0');
+    }
+    
+    const iterator = await stub.getStateByRange('', '');
+    const products = [];
+    
+    try {
+      while (true) {
+        const res = await iterator.next();
+        if (res.value && res.value.value.toString()) {
+          const record = JSON.parse(res.value.value.toString('utf8'));
+          if (record.docType === 'product') {
+            products.push(record);
+          }
+        }
+        if (res.done) {
+          break;
+        }
+      }
+    } finally {
+      await iterator.close();
+    }
+    
+    console.info('========= Get All Products Complete =========');
+    return Buffer.from(JSON.stringify(products));
+  }
 }
+
+
 
 console.log('Starting VotingSystem...');
 shim.start(new VotingSystem());
